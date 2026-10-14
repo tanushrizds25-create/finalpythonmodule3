@@ -1,0 +1,265 @@
+
+import json
+import os
+from datetime import datetime
+
+FILE = "accounts.json"
+
+
+def load_data():
+    if os.path.exists(FILE):
+        try:
+            with open(FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_data(accounts):
+    with open(FILE, "w") as f:
+        json.dump(accounts, f, indent=4)
+
+
+def add_history(account, kind, amount, details=""):
+    account["history"].append({
+        "date": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+        "type": kind,
+        "amount": amount,
+        "details": details
+    })
+
+
+def get_amount(message):
+    try:
+        amount = float(input(message))
+        if amount <= 0:
+            print("Amount must be greater than zero!")
+            return None
+        return amount
+    except ValueError:
+        print("Please enter a valid number!")
+        return None
+
+
+def verify_account(accounts):
+    number = input("Enter account number: ").strip()
+
+    if number not in accounts:
+        print("Account not found! Create the account first.")
+        return None
+
+    pin = input("Enter 4-digit PIN: ").strip()
+
+    if pin != accounts[number]["pin"]:
+        print("Incorrect PIN!")
+        return None
+
+    return number
+
+
+def create_account(accounts):
+    number = input("Enter new account number: ").strip()
+
+    if not number:
+        print("Account number cannot be empty!")
+        return
+
+    if number in accounts:
+        print("This account already exists!")
+        return
+
+    name = input("Enter account holder name: ").strip()
+    pin = input("Set a 4-digit PIN: ").strip()
+
+    if not name:
+        print("Name cannot be empty!")
+        return
+
+    if len(pin) != 4 or not pin.isdigit():
+        print("PIN must contain exactly 4 digits!")
+        return
+
+    balance = get_amount("Enter opening balance: ")
+    if balance is None:
+        return
+
+    accounts[number] = {
+        "account_no": number,
+        "name": name,
+        "pin": pin,
+        "balance": balance,
+        "history": []
+    }
+
+    add_history(accounts[number], "Account Created", balance)
+    save_data(accounts)
+    print("Account created successfully!")
+
+
+def deposit(accounts):
+    number = verify_account(accounts)
+    if number is None:
+        return
+
+    amount = get_amount("Enter deposit amount: ")
+    if amount is None:
+        return
+
+    accounts[number]["balance"] += amount
+    add_history(accounts[number], "Deposit", amount)
+    save_data(accounts)
+
+    print("Deposit successful!")
+    print("New balance: Rs.", accounts[number]["balance"])
+
+
+def withdraw(accounts):
+    number = verify_account(accounts)
+    if number is None:
+        return
+
+    amount = get_amount("Enter withdrawal amount: ")
+    if amount is None:
+        return
+
+    account = accounts[number]
+
+    if amount > account["balance"]:
+        print("Insufficient balance!")
+        return
+
+    account["balance"] -= amount
+    add_history(account, "Withdrawal", amount)
+    save_data(accounts)
+
+    print("Withdrawal successful!")
+    print("New balance: Rs.", account["balance"])
+
+
+def transfer(accounts):
+    sender_no = verify_account(accounts)
+    if sender_no is None:
+        return
+
+    receiver_no = input("Enter receiver account number: ").strip()
+
+    if receiver_no not in accounts:
+        print("Receiver account not found!")
+        return
+
+    if sender_no == receiver_no:
+        print("Sender and receiver must be different!")
+        return
+
+    amount = get_amount("Enter transfer amount: ")
+    if amount is None:
+        return
+
+    sender = accounts[sender_no]
+    receiver = accounts[receiver_no]
+
+    if amount > sender["balance"]:
+        print("Insufficient balance!")
+        return
+
+    sender["balance"] -= amount
+    receiver["balance"] += amount
+
+    add_history(sender, "Transfer Sent", amount,
+                "To account " + receiver_no)
+    add_history(receiver, "Transfer Received", amount,
+                "From account " + sender_no)
+
+    save_data(accounts)
+
+    print("Transfer successful!")
+    print("Your new balance: Rs.", sender["balance"])
+
+
+def check_balance(accounts):
+    number = verify_account(accounts)
+    if number is None:
+        return
+
+    account = accounts[number]
+    print("Account holder:", account["name"])
+    print("Account number:", number)
+    print("Available balance: Rs.", account["balance"])
+
+
+def transaction_history(accounts):
+    number = verify_account(accounts)
+    if number is None:
+        return
+
+    history = accounts[number]["history"]
+
+    print("\n===== TRANSACTION HISTORY =====")
+    if not history:
+        print("No transactions found!")
+        return
+
+    for item in history:
+        print(item["date"], "|", item["type"],
+              "| Rs.", item["amount"], "|", item["details"])
+
+
+def statement(accounts):
+    number = verify_account(accounts)
+    if number is None:
+        return
+
+    account = accounts[number]
+
+    print("\n========== ACCOUNT STATEMENT ==========")
+    print("Account holder:", account["name"])
+    print("Account number:", account["account_no"])
+    print("Current balance: Rs.", account["balance"])
+    print("\nTransaction history:")
+
+    for item in account["history"]:
+        print(item["date"], "|", item["type"],
+              "| Rs.", item["amount"], "|", item["details"])
+
+
+def main():
+    accounts = load_data()
+
+    while True:
+        print("\n===== BANKING MANAGEMENT SYSTEM =====")
+        print("1. Create Account")
+        print("2. Deposit Money")
+        print("3. Withdraw Money")
+        print("4. Fund Transfer")
+        print("5. Check Balance")
+        print("6. Transaction History")
+        print("7. Account Statement")
+        print("8. Exit")
+
+        choice = input("Enter your choice (1-8): ").strip()
+
+        match choice:
+            case "1":
+                create_account(accounts)
+            case "2":
+                deposit(accounts)
+            case "3":
+                withdraw(accounts)
+            case "4":
+                transfer(accounts)
+            case "5":
+                check_balance(accounts)
+            case "6":
+                transaction_history(accounts)
+            case "7":
+                statement(accounts)
+            case "8":
+                print("Thank you for using the Banking Management System!")
+                break
+            case _:
+                print("Invalid choice! Enter a number from 1 to 8.")
+
+
+if __name__ == "__main__":
+    main()
